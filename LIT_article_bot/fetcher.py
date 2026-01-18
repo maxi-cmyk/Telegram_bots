@@ -1,5 +1,6 @@
 import feedparser
 import logging
+import requests
 from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 import time
@@ -9,6 +10,10 @@ logger = logging.getLogger(__name__)
 class RSSFetcher:
     def __init__(self, sources):
         self.sources = sources
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
+        }
     
     def fetch_updates(self, last_check_time=None):
         """
@@ -19,11 +24,23 @@ class RSSFetcher:
         
         for source in self.sources:
             try:
-                # Add User-Agent to avoid being blocked
-                feed = feedparser.parse(source, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                # Use requests to fetch the feed content
+                response = requests.get(source, headers=self.headers, timeout=15)
+                response.raise_for_status()
                 
-                if feed.bozo:
-                    logger.warning(f"Error parsing feed {source}: {feed.bozo_exception}")
+                # Parse the content
+                feed = feedparser.parse(response.content)
+                
+                # Log feed title for debugging
+                logger.debug(f"Fetched feed: {feed.feed.get('title', 'Unknown Title')}")
+
+                # Even if bozo is True, feedparser might have recovered some data.
+                # We only skip if there are no entries.
+                if not feed.entries:
+                    if feed.bozo:
+                        logger.warning(f"Error parsing feed {source}: {feed.bozo_exception}")
+                    else:
+                        logger.warning(f"No entries found for {source}")
                     continue
                 
                 for entry in feed.entries:
@@ -43,8 +60,10 @@ class RSSFetcher:
                         "published": published_time,
                         "source": feed.feed.get("title", source)
                     })
+            except requests.RequestException as e:
+                logger.error(f"Network error fetching {source}: {e}")
             except Exception as e:
-                logger.error(f"Error fetching {source}: {e}")
+                logger.error(f"Error processing {source}: {e}")
                 
         # Sort by published time (newest first)
         articles.sort(key=lambda x: x['published'], reverse=True)

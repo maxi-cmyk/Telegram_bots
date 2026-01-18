@@ -32,22 +32,20 @@ KEYWORDS = [
 ]
 
 # Data Sources (RSS Feeds)
+# Data Sources (RSS Feeds)
 RSS_FEEDS = [
-    # "https://cyber.harvard.edu/feed",  # Harvard Berkman Klein Center (Parsing error)
-    "https://hai.stanford.edu/news/feed", # Stanford HAI (Check if this feed is valid, otherwise usually they have one)
+    # Global Tech & Law Policy
     "https://www.eff.org/rss/updates.xml", # EFF
-    "https://www.lawfareblog.com/feeds/feed", # Lawfare
-    "https://feeds.feedburner.com/TechCrunch", # TechCrunch (Needs heavy filtering)
     "https://www.theverge.com/rss/policy/index.xml", # The Verge Policy
-    "https://arxiv.org/rss/cs.CY", # ArXiv Computers and Society
+    
     # Singapore Sources
     "https://www.singaporelawwatch.sg/Headlines/feed/rss", # Singapore Law Watch Headlines
-    "https://singaporelegaladvice.com/feed/", # Singapore Legal Advice
-
-    "https://law.nus.edu.sg/lawresearchblog/feed/", # NUS Law Research Blog
-    "https://scholar.smu.edu/cgi/siteview.cgi/scitech/rss.xml", # SMU Science and Technology Law Review (Standard BePress)
-    # International Tech & Law
+    "https://www.straitstimes.com/news/tech/rss.xml", # Straits Times Tech
+    "https://www.businesstimes.com.sg/rss/technology", # Business Times Tech
+    
+    # Global Legal Tech
+    "https://artificiallawyer.com/feed/", # Artificial Lawyer
+    "https://www.abajournal.com/rss/feeds/topics_Technology", # ABA Journal Tech
     "https://www.technologyreview.com/feed/", # MIT Technology Review
     "https://btlj.org/feed/", # Berkeley Technology Law Journal
-
 ]

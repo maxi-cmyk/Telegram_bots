@@ -1,12 +1,19 @@
-import google.generativeai as genai
 import logging
-from config import GOOGLE_API_KEY, KEYWORDS
+import re
+from config import KEYWORDS
 
 logger = logging.getLogger(__name__)
 
-# Configure Gemini
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
+# Category Mapping
+CATEGORY_MAP = {
+    "AI & Law": ["AI", "Artificial Intelligence", "Machine Learning", "Generative AI", "LLM", "Deepfakes"],
+    "Quantum Computing": ["Quantum"],
+    "Cryptography": ["Cryptography", "Encryption", "Blockchain"],
+    "Renewable Energy": ["Renewable Energy", "Green Tech", "Sustainability", "Climate Law"],
+    "Intellectual Property": ["Copyright", "IP", "Intellectual Property"],
+    "Data Privacy": ["Data Privacy", "GDPR", "Cybersecurity"],
+    "Tech Policy": ["Regulation", "Tech Policy", "Antitrust", "Emerging Tech"]
+}
 
 class ArticleProcessor:
     def __init__(self):
@@ -15,69 +22,71 @@ class ArticleProcessor:
     def is_relevant(self, article):
         """
         Checks if the article is relevant based on keywords in title or summary.
+        Uses regex word boundaries to avoid false positives.
         """
         text = (article['title'] + " " + article['summary']).lower()
+        
         for keyword in self.keywords:
-            if keyword in text:
+            pattern = re.compile(r'\b' + re.escape(keyword) + r'\b')
+            if pattern.search(text):
                 logger.info(f"Match found for keyword '{keyword}': {article['title']}")
                 return True
         return False
 
     def process_article(self, article):
         """
-        Summarizes the article and generates hashtags using Gemini.
-        Returns a dictionary with summary and hashtags.
+        Processes article without AI.
+        1. Uses original RSS summary.
+        2. Heuristically determines Category.
+        3. Generates Hashtags from keywords.
         """
         try:
-            prompt = f"""
-            You are a legal tech expert assistant.
-            Please analyze the following article and:
-            1. Classify it into ONE of these categories: [AI & Law, Quantum Computing, Cryptography, Renewable Energy/Sustainability, Intellectual Property, Data Privacy, Other].
-            2. Summarize it in 2-3 concise sentences, focusing on the intersection of technology and law.
-            3. Generate 2-3 relevant hashtags.
+            text = (article['title'] + " " + article['summary']).lower()
             
-            Article Title: {article['title']}
-            Article Content/Summary: {article['summary']}
-            Article Link: {article['link']}
-
-            Output format:
-            Category: [Category Name]
-            Summary: [Your summary here]
-            Hashtags: [Hashtag1] [Hashtag2]
-            """
-            
-            response = model.generate_content(prompt)
-            text = response.text.strip()
-            
-            # Simple parsing
+            # 1. Determine Category
             category = "General Tech Law"
-            summary = ""
-            hashtags = ""
+            matched_keywords = []
+
+            for cat, keywords in CATEGORY_MAP.items():
+                for k in keywords:
+                    if re.search(r'\b' + re.escape(k.lower()) + r'\b', text):
+                        category = cat
+                        break
             
-            lines = text.split('\n')
-            for line in lines:
-                if line.startswith("Category:"):
-                    category = line.replace("Category:", "").strip()
-                elif line.startswith("Summary:"):
-                    summary = line.replace("Summary:", "").strip()
-                elif line.startswith("Hashtags:"):
-                    hashtags = line.replace("Hashtags:", "").strip()
+            # 2. Generate Hashtags
+            # Find all matching keywords for tags
+            for k in self.keywords:
+                if re.search(r'\b' + re.escape(k) + r'\b', text):
+                    matched_keywords.append(k.replace(" ", ""))
             
-            # Fallback if parsing fails
-            if not summary:
-                summary = text 
+            # Add category tag if unique
+            cat_tag = category.replace(" ", "").replace("&", "")
+            if cat_tag not in matched_keywords:
+                matched_keywords.append(cat_tag)
+                
+            hashtags = " ".join([f"#{t}" for t in set(matched_keywords[:5])]) # Limit to 5 tags
             
+            # 3. Clean Summary
+            # We'll use the raw RSS summary but strip HTML tags and escape it for Telegram
+            import html
+            summary_text = article.get('summary', 'No summary available.')
+            
+            # Remove HTML tags (e.g. <div>, <p>, <a href...>)
+            summary_text = re.sub(r'<[^>]+>', '', summary_text)
+            
+            # Escape valid HTML characters (<, >, &) so they don't break Telegram parsing
+            summary_text = html.escape(summary_text)
+            
+            # Truncate if too long
+            if len(summary_text) > 800:
+                summary_text = summary_text[:800] + "..."
+
             return {
                 "category": category,
-                "summary": summary,
+                "summary": summary_text,
                 "hashtags": hashtags
             }
             
         except Exception as e:
-            logger.error(f"Error processing article with Gemini: {e}")
-            # Fallback to original summary
-            return {
-                "category": "Tech Law (Unclassified)",
-                "summary": f"(AI Summary Unavailable) {article.get('summary', '')[:500]}...",
-                "hashtags": "#TechLaw"
-            }
+            logger.error(f"Error processing article: {e}")
+            return None

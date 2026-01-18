@@ -55,9 +55,13 @@ async def process_and_send(context: ContextTypes.DEFAULT_TYPE, articles, limit=N
             processed_data = processor.process_article(article)
             
             if processed_data:
+                # Escape title to prevent HTML errors
+                import html
+                safe_title = html.escape(article['title'])
+                
                 category_tag = f"<b>[{processed_data.get('category', 'Tech Law')}]</b>"
                 message = f"{category_tag}\n" \
-                          f"<b>{article['title']}</b>\n\n" \
+                          f"<b>{safe_title}</b>\n\n" \
                           f"{processed_data['summary']}\n\n" \
                           f"Source: {article['source']}\n" \
                           f"{processed_data['hashtags']}\n\n" \

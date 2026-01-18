@@ -3,10 +3,9 @@
 ## Features
 
 - **Smart Fetching**: Fetches from trusted Tech/Law sources:
-  - **Singapore**: Singapore Law Watch, Singapore Legal Advice, NUS Law Blog, SMU SciTech Law Review.
-  - **International**: MIT Technology Review, Berkeley Tech Law Journal, The Verge Policy, EFF, ArXiv (CS & Society).
-- **AI Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]`, etc.
-- **AI Summarization**: Concisely summarizes articles and generates hashtags using Google Gemini.
+  - **Singapore**: Singapore Law Watch, Straits Times Tech, Business Times Tech, NUS Law Blog, SMU SciTech Law Review.
+  - **International**: Artificial Lawyer, ABA Journal, MIT Tech Review, Berkeley Tech Law, EFF, TechCrunch.
+- **Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]` based on keywords.
 - **Deduplication**: Remembers sent articles (persistent `history.json`) to avoid duplicates.
 - **Startup Fetch**: Immediately finds 4 fresh articles when you restart the bot.
 - **Interactive**: Includes a "Remove ❌" button to delete unwanted messages.
@@ -47,7 +46,7 @@
 
 ### `processor.py`
 
-- **`ArticleProcessor.process_article`**: Sends the article title and summary to Google Gemini. It asks for a 2-3 sentence summary and hashtags. Has fallback logic to use the original RSS summary if the API quota is exceeded.
+- **`ArticleProcessor.process_article`**: Classifies articles into categories (e.g., Quantum, AI) based on keywords and generates hashtags. Uses the original RSS summary for the content.
 
 ### `storage.py`
 

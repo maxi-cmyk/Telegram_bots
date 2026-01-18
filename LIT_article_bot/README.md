@@ -2,9 +2,12 @@
 
 ## Features
 
-- **Smart Fetching**: Fetches articles from tech/law RSS feeds (including Singapore Law Watch & Legal Advice).
-- **AI Power**: Summarizes articles and generates hashtags using Google Gemini.
-- **Deduplication**: Remembers sent articles so you don't get duplicates (persistent `history.json`).
+- **Smart Fetching**: Fetches from trusted Tech/Law sources:
+  - **Singapore**: Singapore Law Watch, Singapore Legal Advice, CNA, NUS Law Blog, SMU SciTech Law Review.
+  - **International**: MIT Technology Review, Berkeley Tech Law Journal, The Verge Policy, EFF, ArXiv (CS & Society).
+- **AI Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]`, etc.
+- **AI Summarization**: Concisely summarizes articles and generates hashtags using Google Gemini.
+- **Deduplication**: Remembers sent articles (persistent `history.json`) to avoid duplicates.
 - **Startup Fetch**: Immediately finds 4 fresh articles when you restart the bot.
 - **Interactive**: Includes a "Remove ❌" button to delete unwanted messages.
 

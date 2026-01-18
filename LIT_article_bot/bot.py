@@ -23,7 +23,6 @@ processor = ArticleProcessor()
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 # State to track last sent article time to avoid duplicates
-# In a real prod app, use a database. For now, we use a simple timestamp.
 last_check_time = datetime.now() - timedelta(hours=24) # Look back 24h on start
 
 async def job():

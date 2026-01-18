@@ -31,14 +31,17 @@ class ArticleProcessor:
         try:
             prompt = f"""
             You are a legal tech expert assistant.
-            Please summarize the following article in 2-3 concise sentences, focusing on the intersection of technology and law (especially AI and copyright if applicable).
-            Also, generate 2-3 relevant hashtags (e.g., #copyright_law, #AI_regulation, #tech_policy).
+            Please analyze the following article and:
+            1. Classify it into ONE of these categories: [AI & Law, Quantum Computing, Cryptography, Renewable Energy/Sustainability, Intellectual Property, Data Privacy, Other].
+            2. Summarize it in 2-3 concise sentences, focusing on the intersection of technology and law.
+            3. Generate 2-3 relevant hashtags.
             
             Article Title: {article['title']}
             Article Content/Summary: {article['summary']}
             Article Link: {article['link']}
 
             Output format:
+            Category: [Category Name]
             Summary: [Your summary here]
             Hashtags: [Hashtag1] [Hashtag2]
             """
@@ -46,22 +49,26 @@ class ArticleProcessor:
             response = model.generate_content(prompt)
             text = response.text.strip()
             
-            # Simple parsing (can be made more robust)
+            # Simple parsing
+            category = "General Tech Law"
             summary = ""
             hashtags = ""
             
             lines = text.split('\n')
             for line in lines:
-                if line.startswith("Summary:"):
+                if line.startswith("Category:"):
+                    category = line.replace("Category:", "").strip()
+                elif line.startswith("Summary:"):
                     summary = line.replace("Summary:", "").strip()
                 elif line.startswith("Hashtags:"):
                     hashtags = line.replace("Hashtags:", "").strip()
             
-            # Fallback if parsing fails (Gemini might not strictly follow format)
+            # Fallback if parsing fails
             if not summary:
                 summary = text 
             
             return {
+                "category": category,
                 "summary": summary,
                 "hashtags": hashtags
             }
@@ -70,6 +77,7 @@ class ArticleProcessor:
             logger.error(f"Error processing article with Gemini: {e}")
             # Fallback to original summary
             return {
+                "category": "Tech Law (Unclassified)",
                 "summary": f"(AI Summary Unavailable) {article.get('summary', '')[:500]}...",
                 "hashtags": "#TechLaw"
             }

@@ -26,7 +26,9 @@ KEYWORDS = [
     "Machine Learning", "Deepfakes", 
     "Generative AI", "LLM", 
     "Tech Policy", "Antitrust", "Cybersecurity",
-    "Emerging Tech", "Quantum Computing", "Blockchain Law"
+    "Emerging Tech", "Quantum Computing", "Blockchain Law",
+    "Cryptography", "Encryption", 
+    "Renewable Energy", "Green Tech", "Sustainability", "Climate Law"
 ]
 
 # Data Sources (RSS Feeds)
@@ -41,5 +43,11 @@ RSS_FEEDS = [
     # Singapore Sources
     "https://www.singaporelawwatch.sg/Headlines/feed/rss", # Singapore Law Watch Headlines
     "https://singaporelegaladvice.com/feed/", # Singapore Legal Advice
+    "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml", # CNA Main (Filter will catch Tech/Law)
+    "https://law.nus.edu.sg/lawresearchblog/feed/", # NUS Law Research Blog
+    "https://scholar.smu.edu/cgi/siteview.cgi/scitech/rss.xml", # SMU Science and Technology Law Review (Standard BePress)
+    # International Tech & Law
+    "https://www.technologyreview.com/feed/", # MIT Technology Review
+    "https://btlj.org/feed/", # Berkeley Technology Law Journal
 
 ]

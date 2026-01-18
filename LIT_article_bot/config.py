@@ -37,5 +37,9 @@ RSS_FEEDS = [
     "https://www.lawfareblog.com/feeds/feed", # Lawfare
     "https://feeds.feedburner.com/TechCrunch", # TechCrunch (Needs heavy filtering)
     "https://www.theverge.com/rss/policy/index.xml", # The Verge Policy
-    "https://arxiv.org/rss/cs.CY", # ArXiv Computers and Society (Very academic, good for emerging tech)
+    "https://arxiv.org/rss/cs.CY", # ArXiv Computers and Society
+    # Singapore Sources
+    "https://www.singaporelawwatch.sg/Headlines/feed/rss", # Singapore Law Watch Headlines
+    "https://singaporelegaladvice.com/feed/", # Singapore Legal Advice
+ (Very academic, good for emerging tech)
 ]

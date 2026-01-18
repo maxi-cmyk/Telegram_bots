@@ -3,7 +3,7 @@
 ## Features
 
 - **Smart Fetching**: Fetches from trusted Tech/Law sources:
-  - **Singapore**: Singapore Law Watch, Singapore Legal Advice, CNA, NUS Law Blog, SMU SciTech Law Review.
+  - **Singapore**: Singapore Law Watch, Singapore Legal Advice, NUS Law Blog, SMU SciTech Law Review.
   - **International**: MIT Technology Review, Berkeley Tech Law Journal, The Verge Policy, EFF, ArXiv (CS & Society).
 - **AI Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]`, etc.
 - **AI Summarization**: Concisely summarizes articles and generates hashtags using Google Gemini.

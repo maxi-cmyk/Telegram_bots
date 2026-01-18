@@ -41,5 +41,5 @@ RSS_FEEDS = [
     # Singapore Sources
     "https://www.singaporelawwatch.sg/Headlines/feed/rss", # Singapore Law Watch Headlines
     "https://singaporelegaladvice.com/feed/", # Singapore Legal Advice
- (Very academic, good for emerging tech)
+
 ]

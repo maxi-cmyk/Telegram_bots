@@ -16,7 +16,7 @@
     pip install -r requirements.txt
     ```
 
-    _(Note: We use `python-telegram-bot[job-queue]` for scheduling)_
+    (Note: use `python-telegram-bot[job-queue]` for scheduling)
 
 2.  **Configuration**:
     - Rename `.env.example` to `.env` (if you haven't already).
@@ -28,3 +28,24 @@
     python bot.py
     ```
     The bot will fetch 4 articles immediately, and then check for updates **every 60 minutes** (configurable in `.env`).
+
+## Code Overview
+
+### `bot.py`
+
+- **`startup_job`**: Runs once on boot. Fetches 4 unique articles from the last 7 days to populate the channel immediately.
+- **`scheduled_job`**: Runs periodically (default: every hour). Checks for _new_ articles published since the last check.
+- **`process_and_send`**: The core logic. It filters duplicates (using `storage.py`), relevance (using `processor.py`), formats the message with HTML, attaches the "Remove" button, and sends it.
+- **`remove_article`**: The callback handler that actually deletes the message when you click "Remove ❌".
+
+### `fetcher.py`
+
+- **`RSSFetcher.fetch_updates`**: parses the list of RSS feeds defined in `config.py`. It normalizes dates and handles errors (like bad feeds) gracefully.
+
+### `processor.py`
+
+- **`ArticleProcessor.process_article`**: Sends the article title and summary to Google Gemini. It asks for a 2-3 sentence summary and hashtags. Has fallback logic to use the original RSS summary if the API quota is exceeded.
+
+### `storage.py`
+
+- **`Storage`**: Manages `history.json`. It ensures we never spam the channel with the same article twice, even if the bot restarts.

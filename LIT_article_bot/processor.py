@@ -1,0 +1,75 @@
+import google.generativeai as genai
+import logging
+from config import GOOGLE_API_KEY, KEYWORDS
+
+logger = logging.getLogger(__name__)
+
+# Configure Gemini
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-2.0-flash')
+
+class ArticleProcessor:
+    def __init__(self):
+        self.keywords = [k.lower() for k in KEYWORDS]
+
+    def is_relevant(self, article):
+        """
+        Checks if the article is relevant based on keywords in title or summary.
+        """
+        text = (article['title'] + " " + article['summary']).lower()
+        for keyword in self.keywords:
+            if keyword in text:
+                logger.info(f"Match found for keyword '{keyword}': {article['title']}")
+                return True
+        return False
+
+    def process_article(self, article):
+        """
+        Summarizes the article and generates hashtags using Gemini.
+        Returns a dictionary with summary and hashtags.
+        """
+        try:
+            prompt = f"""
+            You are a legal tech expert assistant.
+            Please summarize the following article in 2-3 concise sentences, focusing on the intersection of technology and law (especially AI and copyright if applicable).
+            Also, generate 2-3 relevant hashtags (e.g., #copyright_law, #AI_regulation, #tech_policy).
+            
+            Article Title: {article['title']}
+            Article Content/Summary: {article['summary']}
+            Article Link: {article['link']}
+
+            Output format:
+            Summary: [Your summary here]
+            Hashtags: [Hashtag1] [Hashtag2]
+            """
+            
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+            
+            # Simple parsing (can be made more robust)
+            summary = ""
+            hashtags = ""
+            
+            lines = text.split('\n')
+            for line in lines:
+                if line.startswith("Summary:"):
+                    summary = line.replace("Summary:", "").strip()
+                elif line.startswith("Hashtags:"):
+                    hashtags = line.replace("Hashtags:", "").strip()
+            
+            # Fallback if parsing fails (Gemini might not strictly follow format)
+            if not summary:
+                summary = text 
+            
+            return {
+                "summary": summary,
+                "hashtags": hashtags
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing article with Gemini: {e}")
+            # Fallback to original summary
+            return {
+                "summary": f"(AI Summary Unavailable) {article.get('summary', '')[:500]}...",
+                "hashtags": "#TechLaw"
+            }

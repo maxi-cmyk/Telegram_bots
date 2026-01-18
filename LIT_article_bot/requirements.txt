@@ -1,0 +1,7 @@
+python-telegram-bot
+feedparser
+schedule
+requests
+google-generativeai
+python-dotenv
+python-dateutil

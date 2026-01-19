@@ -16,10 +16,13 @@ if not GOOGLE_API_KEY:
 
 # Bot Configuration
 CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
-CHANNEL_ID = os.getenv("CHANNEL_ID") # Can be a channel username like @channelname or an integer ID
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0")) # User ID allowed to run admin commands
 
 # Filtering
-KEYWORDS = [
+# KEYWORDS moved to keywords.json for dynamic management
+# Default list preserved in case keywords.json is missing or corrupted
+DEFAULT_KEYWORDS = [
     "AI", "Artificial Intelligence", 
     "Copyright", "IP", "Intellectual Property", 
     "Regulation", "Data Privacy", "GDPR",

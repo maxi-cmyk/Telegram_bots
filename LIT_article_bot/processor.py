@@ -1,10 +1,11 @@
 import logging
 import re
-from config import KEYWORDS
 
 logger = logging.getLogger(__name__)
 
 # Category Mapping
+# Note: New dynamic keywords won't automatically have a category unless added here.
+# They will fall back to "General Tech Law".
 CATEGORY_MAP = {
     "AI & Law": ["AI", "Artificial Intelligence", "Machine Learning", "Generative AI", "LLM", "Deepfakes"],
     "Quantum Computing": ["Quantum"],
@@ -17,28 +18,25 @@ CATEGORY_MAP = {
 
 class ArticleProcessor:
     def __init__(self):
-        self.keywords = [k.lower() for k in KEYWORDS]
+        pass
 
-    def is_relevant(self, article):
+    def is_relevant(self, article, keywords):
         """
-        Checks if the article is relevant based on keywords in title or summary.
-        Uses regex word boundaries to avoid false positives.
+        Checks if the article is relevant based on dynamic keywords.
         """
         text = (article['title'] + " " + article['summary']).lower()
         
-        for keyword in self.keywords:
-            pattern = re.compile(r'\b' + re.escape(keyword) + r'\b')
+        # keywords argument is expected to be a list of strings
+        for keyword in keywords:
+            pattern = re.compile(r'\b' + re.escape(keyword.lower()) + r'\b')
             if pattern.search(text):
                 logger.info(f"Match found for keyword '{keyword}': {article['title']}")
                 return True
         return False
 
-    def process_article(self, article):
+    def process_article(self, article, keywords):
         """
-        Processes article without AI.
-        1. Uses original RSS summary.
-        2. Heuristically determines Category.
-        3. Generates Hashtags from keywords.
+        Processes article using dynamic keywords for hashtag generation.
         """
         try:
             text = (article['title'] + " " + article['summary']).lower()
@@ -47,16 +45,16 @@ class ArticleProcessor:
             category = "General Tech Law"
             matched_keywords = []
 
-            for cat, keywords in CATEGORY_MAP.items():
-                for k in keywords:
+            for cat, cat_keys in CATEGORY_MAP.items():
+                for k in cat_keys:
                     if re.search(r'\b' + re.escape(k.lower()) + r'\b', text):
                         category = cat
                         break
             
             # 2. Generate Hashtags
-            # Find all matching keywords for tags
-            for k in self.keywords:
-                if re.search(r'\b' + re.escape(k) + r'\b', text):
+            # Find all matching keywords from the dynamic list
+            for k in keywords:
+                if re.search(r'\b' + re.escape(k.lower()) + r'\b', text):
                     matched_keywords.append(k.replace(" ", ""))
             
             # Add category tag if unique
@@ -67,7 +65,6 @@ class ArticleProcessor:
             hashtags = " ".join([f"#{t}" for t in set(matched_keywords[:5])]) # Limit to 5 tags
             
             # 3. Clean Summary
-            # We'll use the raw RSS summary but strip HTML tags and escape it for Telegram
             import html
             summary_text = article.get('summary', 'No summary available.')
             

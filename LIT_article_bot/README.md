@@ -20,10 +20,30 @@
 
     (Note: use `python-telegram-bot[job-queue]` for scheduling)
 
-2.  **Configuration**:
-    - Rename `.env.example` to `.env` (if you haven't already).
-    - Add your `TELEGRAM_BOT_TOKEN`, `GOOGLE_API_KEY`, and `CHANNEL_ID`.
-    - Ensure `CHANNEL_ID` starts with `-100` if it's a private channel (e.g., `-100123456789`).
+2.  ## 🛠 Admin & Keyword Management
+    The bot includes interactive commands for administrators:
+
+| Command           | Usage                 | Description                                       |
+| :---------------- | :-------------------- | :------------------------------------------------ |
+| `/status`         | `/status`             | View bot uptime, source count, and keyword count. |
+| `/force_fetch`    | `/force_fetch`        | Trigger an immediate check for new articles.      |
+| `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.             |
+| `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                        |
+| `/list_keywords`  | `/list_keywords`      | Show all active keywords.                         |
+
+> **Note**: Commands are restricted to the `ADMIN_ID` specified in `.env`.
+
+## ⚙️ Configuration
+
+The bot is configured via environment variables and `config.py`.
+
+### Environment Variables (`.env`)
+
+- `TELEGRAM_BOT_TOKEN`: Your API token.
+- `CHANNEL_ID`: The channel to post to (start with `-100`).
+- `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60).
+- `ADMIN_ID`: (Optional) Your numerical Telegram User ID for admin commands.
+- `GOOGLE_API_KEY`: Your Google API key for specific features (e.g., custom search).
 
 3.  **Run**:
     ```bash

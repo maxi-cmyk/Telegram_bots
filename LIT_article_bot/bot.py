@@ -29,14 +29,21 @@ START_TIME = datetime.now()
 # --- Helper Checks ---
 def is_admin(user_id):
     if ADMIN_ID == 0:
-        return True # Dev mode or no admin set (Careful!)
-    return user_id == ADMIN_ID
+        logger.warning(f"Allowed admin command in DEV MODE (ADMIN_ID=0) for User ID: {user_id}")
+        return True 
+    
+    if user_id != ADMIN_ID:
+        logger.warning(f"Unauthorized admin attempt by User ID: {user_id}")
+        return False
+        
+    return True
 
 # --- Command Handlers ---
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Reports bot health and statistics."""
     if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
         return
 
     uptime = datetime.now() - START_TIME
@@ -53,6 +60,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def force_fetch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manually triggers the fetch job."""
     if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
         return
 
     await update.message.reply_text("🔄 Force fetching articles...")
@@ -62,25 +70,27 @@ async def force_fetch_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     # We pass 'context' but verify if scheduled_job uses it correctly (yes)
     await scheduled_job(context)
     
-    await update.message.reply_text("✅ Fetch complete.")
+    await update.message.reply_text("Fetch complete.")
 
 async def list_keywords_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lists all active keywords."""
     if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
         return
 
     keywords = storage.get_keywords()
     if not keywords:
-        await update.message.reply_text("❌ No keywords set.")
+        await update.message.reply_text("No keywords set.")
         return
         
-    # Join nicely
-    msg = "<b>🔑 Active Keywords:</b>\n" + ", ".join(keywords)
+    # Join
+    msg = "<b> Active Keywords:</b>\n" + ", ".join(keywords)
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def add_keyword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Adds a keyword. Usage: /add_keyword <word>"""
     if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
         return
 
     if not context.args:
@@ -92,14 +102,15 @@ async def add_keyword_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyword = " ".join(context.args)
     
     if storage.add_keyword(keyword):
-        await update.message.reply_text(f"✅ Added keyword: <b>{keyword}</b>", parse_mode='HTML')
+        await update.message.reply_text(f"Added keyword: <b>{keyword}</b>", parse_mode='HTML')
         logger.info(f"Keyword added: {keyword}")
     else:
-        await update.message.reply_text(f"⚠️ Keyword <b>{keyword}</b> already exists.", parse_mode='HTML')
+        await update.message.reply_text(f"Keyword <b>{keyword}</b> already exists.", parse_mode='HTML')
 
 async def remove_keyword_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Removes a keyword. Usage: /remove_keyword <word>"""
     if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
         return
 
     if not context.args:
@@ -112,7 +123,7 @@ async def remove_keyword_command(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(f"🗑 Removed keyword: <b>{keyword}</b>", parse_mode='HTML')
         logger.info(f"Keyword removed: {keyword}")
     else:
-        await update.message.reply_text(f"⚠️ Keyword <b>{keyword}</b> not found.", parse_mode='HTML')
+        await update.message.reply_text(f"Keyword <b>{keyword}</b> not found.", parse_mode='HTML')
 
 # --- Existing Handlers ---
 

@@ -20,8 +20,25 @@
 
     (Note: use `python-telegram-bot[job-queue]` for scheduling)
 
-2.  ## 🛠 Admin & Keyword Management
-    The bot includes interactive commands for administrators:
+2.  **Configuration**:
+    The bot is configured via environment variables and `config.py`.
+
+    ### Environment Variables (`.env`)
+    - `TELEGRAM_BOT_TOKEN`: Your API token.
+    - `CHANNEL_ID`: The channel to post to (start with `-100`).
+    - `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60).
+    - `ADMIN_ID`: (Optional) Your numerical Telegram User ID for admin commands.
+    - `GOOGLE_API_KEY`: Your Google API key for specific features (e.g., custom search).
+
+3.  **Run**:
+    ```bash
+    python bot.py
+    ```
+    The bot will fetch 4 articles immediately, and then check for updates **every 60 minutes** (configurable in `.env`).
+
+## 🛠 Admin & Keyword Management
+
+The bot includes interactive commands for administrators (restricted to `ADMIN_ID`):
 
 | Command           | Usage                 | Description                                       |
 | :---------------- | :-------------------- | :------------------------------------------------ |
@@ -30,26 +47,6 @@
 | `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.             |
 | `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                        |
 | `/list_keywords`  | `/list_keywords`      | Show all active keywords.                         |
-
-> **Note**: Commands are restricted to the `ADMIN_ID` specified in `.env`.
-
-## ⚙️ Configuration
-
-The bot is configured via environment variables and `config.py`.
-
-### Environment Variables (`.env`)
-
-- `TELEGRAM_BOT_TOKEN`: Your API token.
-- `CHANNEL_ID`: The channel to post to (start with `-100`).
-- `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60).
-- `ADMIN_ID`: (Optional) Your numerical Telegram User ID for admin commands.
-- `GOOGLE_API_KEY`: Your Google API key for specific features (e.g., custom search).
-
-3.  **Run**:
-    ```bash
-    python bot.py
-    ```
-    The bot will fetch 4 articles immediately, and then check for updates **every 60 minutes** (configurable in `.env`).
 
 ## Code Overview
 

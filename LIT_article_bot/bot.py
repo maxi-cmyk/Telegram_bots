@@ -94,15 +94,13 @@ async def process_and_send(context: ContextTypes.DEFAULT_TYPE, articles, limit=N
             else:
                 logger.warning(f"Failed to process article: {article['title']}")
         else:
-            # Optionally mark irrelevant articles as seen so we don't check them again? 
-            # For now, we only store SENT articles to keep history clean.
             pass
 
 async def scheduled_job(context: ContextTypes.DEFAULT_TYPE):
     """Periodic job to check for updates."""
     logger.info("Starting scheduled job...")
     
-    # Look back since last interval (plus a buffer)
+    # Look back since last interval
     lookback = datetime.now() - timedelta(minutes=CHECK_INTERVAL_MINUTES + 30)
     articles = fetcher.fetch_updates(lookback)
     
@@ -124,7 +122,7 @@ async def startup_job(context: ContextTypes.DEFAULT_TYPE):
         logger.info("No articles found for startup.")
         return
 
-    # We want 4 unique articles
+    # 4 unique articles
     # process_and_send handles filtering and limiting
     await process_and_send(context, articles, limit=4)
     logger.info("Startup job finished.")

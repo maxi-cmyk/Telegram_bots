@@ -3,8 +3,8 @@
 ## Features
 
 - **Smart Fetching**: Fetches from trusted Tech/Law sources:
-  - **Singapore**: Singapore Law Watch, Straits Times Tech, Business Times Tech, NUS Law Blog, SMU SciTech Law Review.
-  - **International**: Artificial Lawyer, ABA Journal, MIT Tech Review, Berkeley Tech Law, EFF, TechCrunch.
+  - **Singapore**: Singapore Law Watch, Business Times Tech, Tech Revolutionist (Tech Explained), TechGoondu, Tech for Good Institute.
+  - **International**: Artificial Lawyer, ABA Journal, Eric Goldman's Blog, MIT Tech Review, Berkeley Tech Law, EFF.
 - **Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]` based on keywords.
 - **Deduplication**: Remembers sent articles (persistent `history.json`) to avoid duplicates.
 - **Startup Fetch**: Immediately finds 4 fresh articles when you restart the bot.

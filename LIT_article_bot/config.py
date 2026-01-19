@@ -15,7 +15,7 @@ if not GOOGLE_API_KEY:
     raise ValueError("No GOOGLE_API_KEY found in environment variables.")
 
 # Bot Configuration
-CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "60"))
+CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "30"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0")) # User ID allowed to run admin commands
 

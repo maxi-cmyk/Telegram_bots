@@ -221,6 +221,10 @@ async def startup_job(context: ContextTypes.DEFAULT_TYPE):
     """Job to run on startup: fetch 4 unique articles from last 7 days."""
     logger.info("Running startup job...")
     
+    # Reload history from disk to ensure we have the latest state
+    storage.history = storage.load_history()
+    logger.info(f"Loaded {len(storage.history)} articles from history.")
+    
     # Check if keywords need initialization
     if not storage.get_keywords():
         logger.info("Initializing default keywords...")

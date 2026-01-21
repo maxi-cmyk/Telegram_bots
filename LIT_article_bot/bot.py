@@ -6,37 +6,48 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CallbackQueryHandler, CommandHandler, Application
 from telegram.error import TelegramError
 
-from config import TELEGRAM_BOT_TOKEN, CHANNEL_ID, CHECK_INTERVAL_MINUTES, RSS_FEEDS, ADMIN_ID, DEFAULT_KEYWORDS
-from fetcher import RSSFetcher
-from processor import ArticleProcessor
-from storage import Storage
+from config import TELEGRAM_BOT_TOKEN, CHANNEL_ID, CHECK_INTERVAL_MINUTES, RSS_FEEDS, ADMIN_IDS, DEFAULT_KEYWORDS
 
-# Setup Logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-# Silence httpx logs (getUpdates polling)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
-
-# Initialize components
-fetcher = RSSFetcher(RSS_FEEDS)
-processor = ArticleProcessor()
-storage = Storage()
-START_TIME = datetime.now()
+# ... (imports)
 
 # --- Helper Checks ---
 def is_admin(user_id):
-    if ADMIN_ID == 0:
+    if 0 in ADMIN_IDS:
         logger.warning(f"Allowed admin command in DEV MODE (ADMIN_ID=0) for User ID: {user_id}")
         return True 
     
-    if user_id != ADMIN_ID:
+    if user_id not in ADMIN_IDS:
         logger.warning(f"Unauthorized admin attempt by User ID: {user_id}")
         return False
         
     return True
+
+# --- Error Handler ---
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Log the error and send a telegram message to notify the developer."""
+    logger.error(f"Exception while handling an update: {context.error}")
+
+    # Traceback
+    import traceback
+    import html
+    
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_string = "".join(tb_list)
+
+    message = (
+        f"🚨 <b>An exception occurred:</b>\n"
+        f"<pre>{html.escape(str(context.error))}</pre>\n\n"
+        f"<b>Traceback:</b>\n"
+        f"<pre>{html.escape(tb_string[-1500:])}</pre>"
+    )
+
+    for admin_id in ADMIN_IDS:
+        if admin_id != 0:
+            try:
+                await context.bot.send_message(chat_id=admin_id, text=message, parse_mode='HTML')
+            except Exception as e:
+                logger.error(f"Failed to send error report to admin {admin_id}: {e}")
+
 
 # --- Command Handlers ---
 
@@ -52,7 +63,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⏱ Uptime: {str(uptime).split('.')[0]}\n"
         f"📡 Sources: {len(RSS_FEEDS)}\n"
         f"🔑 Active Keywords: {len(storage.get_keywords())}\n"
-        f"📚 History Size: {len(storage.history)}\n"
+        f"📚 History Size: {storage.get_history_count()}\n"
         f"📅 Check Interval: {CHECK_INTERVAL_MINUTES} mins"
     )
     await update.message.reply_text(msg, parse_mode='HTML')
@@ -67,7 +78,7 @@ async def force_fetch_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     logger.info("Manual force fetch triggered.")
     
     # Run the scheduled logic immediately
-    # We pass 'context' but verify if scheduled_job uses it correctly 
+    # We pass 'context' but verify if scheduled_job uses it correctly (yes)
     await scheduled_job(context)
     
     await update.message.reply_text("Fetch complete.")
@@ -124,6 +135,81 @@ async def remove_keyword_command(update: Update, context: ContextTypes.DEFAULT_T
         logger.info(f"Keyword removed: {keyword}")
     else:
         await update.message.reply_text(f"Keyword <b>{keyword}</b> not found.", parse_mode='HTML')
+
+async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manually shares an article. Usage: /share <url>"""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Access Denied: You are not the configured admin.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /share <url>")
+        return
+    
+    url = context.args[0]
+    await update.message.reply_text("🔄 Scraping and processing article...")
+
+    try:
+        from goose3 import Goose
+        g = Goose()
+        article = g.extract(url=url)
+        
+        # Parse published date (fallback to now)
+        published = datetime.now()
+        
+        # Construct article object compatible with processor
+        article_data = {
+            "title": article.title,
+            "link": url,
+            "summary": article.cleaned_text[:2000], # Use cleaned text for AI summary context
+            "published": published,
+            "source": article.domain or "Manual Share"
+        }
+        
+        # Clean up resources
+        g.close()
+        
+        # Process using existing logic
+        current_keywords = storage.get_keywords()
+        processed_data = processor.process_article(article_data, current_keywords)
+        
+        if processed_data:
+            import html
+            safe_title = html.escape(article_data['title'])
+            
+            category_tag = f"<b>[{processed_data.get('category', 'Tech Law')}]</b>"
+            # Manually added tag
+            manual_tag = "\n<i>(Manually Shared)</i>"
+            
+            message = f"{category_tag}\n" \
+                      f"<b>{safe_title}</b>\n\n" \
+                      f"{processed_data['summary']}\n\n" \
+                      f"Source: {article_data['source']}\n" \
+                      f"{processed_data['hashtags']}\n" \
+                      f"{manual_tag}\n\n" \
+                      f"<a href='{article_data['link']}'>Read Full Article</a>"
+            
+            # Add Remove Button
+            keyboard = [[InlineKeyboardButton("Remove ❌", callback_data="remove")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID, 
+                text=message, 
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+            
+            # Add to storage so we don't duplicate if it comes in via RSS later
+            storage.add_article(url)
+            await update.message.reply_text("✅ Article shared successfully.")
+            
+        else:
+            await update.message.reply_text("❌ Failed to process article.")
+            
+    except Exception as e:
+        logger.error(f"Share command failed: {e}")
+        await update.message.reply_text(f"❌ Error sharing article: {e}")
 
 # --- Existing Handlers ---
 
@@ -222,8 +308,8 @@ async def startup_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Running startup job...")
     
     # Reload history from disk to ensure we have the latest state
-    storage.history = storage.load_history()
-    logger.info(f"Loaded {len(storage.history)} articles from history.")
+    # storage.history = storage.load_history() # REMOVED: SQLite handles persistence
+    logger.info(f"Loaded {storage.get_history_count()} articles from history.")
     
     # Check if keywords need initialization
     if not storage.get_keywords():
@@ -257,9 +343,13 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("add_keyword", add_keyword_command))
     application.add_handler(CommandHandler("remove_keyword", remove_keyword_command))
     application.add_handler(CommandHandler("list_keywords", list_keywords_command))
+    application.add_handler(CommandHandler("share", share_command))
     
     # Add Callback Handler
     application.add_handler(CallbackQueryHandler(remove_article, pattern="^remove$"))
+
+    # Add Error Handler
+    application.add_error_handler(error_handler)
 
     # Job Queue
     job_queue = application.job_queue

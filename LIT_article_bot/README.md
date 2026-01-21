@@ -27,8 +27,8 @@
     - `TELEGRAM_BOT_TOKEN`: Your API token.
     - `CHANNEL_ID`: The channel to post to (start with `-100`).
     - `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60).
-    - `ADMIN_ID`: (Optional) Your numerical Telegram User ID for admin commands.
-    - `GOOGLE_API_KEY`: Your Google API key for specific features (e.g., custom search).
+    - `ADMIN_IDS`: Users allowed to use admin commands (comma-separated, e.g., `12345,67890`).
+    - `OLLAMA_MODEL`: Local AI model to use (default: `llama3.2`).
 
 3.  **Run**:
     ```bash
@@ -47,6 +47,7 @@ The bot includes interactive commands for administrators (restricted to `ADMIN_I
 | `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.             |
 | `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                        |
 | `/list_keywords`  | `/list_keywords`      | Show all active keywords.                         |
+| `/share`          | `/share <url>`        | Manually scrape and share an article URL.         |
 
 ## Code Logic & Functions
 
@@ -59,9 +60,10 @@ The bot includes interactive commands for administrators (restricted to `ADMIN_I
 - **`add_keyword_command(update, context)`**: Adds a new keyword to the dynamic tracking list.
 - **`remove_keyword_command(update, context)`**: Removes a keyword from the dynamic tracking list.
 - **`remove_article(update, context)`**: Callback handler that deletes a message when the "Remove ❌" button is clicked.
-- **`process_and_send(context, articles, limit)`**: Core pipeline that filters duplicates/relevance, formats HTML, generates hashtags, attaches UI buttons, and sends messages.
-- **`scheduled_job(context)`**: Periodic background task that checks for new articles published since the last run.
-- **`startup_job(context)`**: One-time task that runs on boot to fetch recent unique articles (last 7 days) and populate the channel.
+- **Start Migration**: On first run, it automatically migrates existing `history.json` and `keywords.json` to `bot_data.db`.
+- **`process_and_send`**: The core logic. It filters duplicates (using `storage.py`), relevance (using `processor.py`), formats the message with HTML, attaches the "Remove" button, and sends it.
+- **`scheduled_job`**: Runs periodically (default: every hour). Checks for _new_ articles published since the last check.
+- **`startup_job`**: Runs once on boot. Fetches 4 unique articles from the last 7 days to populate the channel immediately.
 
 ### `fetcher.py` (RSS Handling)
 
@@ -75,8 +77,7 @@ The bot includes interactive commands for administrators (restricted to `ADMIN_I
 
 ### `storage.py` (Persistence)
 
-- **`Storage.load_history()` / `save_history()`**: Handles reading and writing the list of sent article links to `history.json`.
-- **`Storage.is_new(link)`**: Checks if a URL has already been processed to prevent duplicates.
-- **`Storage.add_article(link)`**: Marks a URL as processed and updates the history file (capped at 1000 entries).
-- **`Storage.load_keywords()` / `save_keywords()`**: Handles reading and writing dynamic keywords to `keywords.json`.
-- **`Storage.add_keyword(keyword)` / `remove_keyword(keyword)`**: CRUD operations for managing the persistent keyword list.
+- **`Storage` (SQLite Migrated)**: Manages `bot_data.db`. Handles persistent history and active keywords using SQLite for robustness and thread safety.
+- **`_run_migration()`**: Automatically imports legacy `history.json` and `keywords.json` data into the database on first run.
+- **`is_new(link)` / `add_article(link)`**: Checks and adds articles using efficient SQL queries.
+- **`get_keywords()` / `add_keyword()`**: Manages dynamic keyword filtering via the database table.

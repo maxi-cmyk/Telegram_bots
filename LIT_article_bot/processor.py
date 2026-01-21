@@ -64,17 +64,41 @@ class ArticleProcessor:
                 
             hashtags = " ".join([f"#{t}" for t in set(matched_keywords[:5])]) # Limit to 5 tags
             
-            # 3. Clean Summary
+            # 3. Clean & Summarize
             import html
-            summary_text = article.get('summary', 'No summary available.')
+            import ollama
+            from config import OLLAMA_MODEL
+
+            # Basic clean of original summary for fallback
+            original_summary = article.get('summary', 'No summary available.')
+            original_summary = re.sub(r'<[^>]+>', '', original_summary)
+            original_summary = html.escape(original_summary)
+
+            summary_text = original_summary
+
+            try:
+                # Attempt AI Summarization
+                prompt = (
+                    f"Summarize the following tech/law article in 1-2 concise, high-impact sentences. "
+                    f"Focus on the legal or technical implication. Do not use 'Here is a summary'. "
+                    f"Title: {article['title']}\n"
+                    f"Content: {original_summary}"
+                )
+                
+                logger.info(f"Generating AI summary for: {article['title']}")
+                response = ollama.chat(model=OLLAMA_MODEL, messages=[
+                    {'role': 'user', 'content': prompt},
+                ])
+                
+                ai_summary = response['message']['content'].strip()
+                if ai_summary:
+                    summary_text = f"✨ <b>AI Summary:</b> {html.escape(ai_summary)}"
+                
+            except Exception as e:
+                logger.warning(f"Ollama summarization failed (using fallback): {e}")
+                # Fallback is already set to original_summary
             
-            # Remove HTML tags (e.g. <div>, <p>, <a href...>)
-            summary_text = re.sub(r'<[^>]+>', '', summary_text)
-            
-            # Escape valid HTML characters (<, >, &) so they don't break Telegram parsing
-            summary_text = html.escape(summary_text)
-            
-            # Truncate if too long
+            # Truncate if too long (backup safety)
             if len(summary_text) > 800:
                 summary_text = summary_text[:800] + "..."
 

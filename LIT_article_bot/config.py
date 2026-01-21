@@ -6,18 +6,27 @@ load_dotenv()
 
 # API Keys
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# AI Configuration
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
 # Check if keys are present
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("No TELEGRAM_BOT_TOKEN found in environment variables.")
-if not GOOGLE_API_KEY:
-    raise ValueError("No GOOGLE_API_KEY found in environment variables.")
+
 
 # Bot Configuration
 CHECK_INTERVAL_MINUTES = int(os.getenv("CHECK_INTERVAL_MINUTES", "30"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0")) # User ID allowed to run admin commands
+
+# Admin Management (Supports multiple IDs comma-separated)
+ADMIN_IDS = []
+_admin_env = os.getenv("ADMIN_IDS", os.getenv("ADMIN_ID", "0"))
+if _admin_env:
+    try:
+        ADMIN_IDS = [int(x.strip()) for x in _admin_env.split(",")]
+    except ValueError:
+        print("Warning: ADMIN_IDS contains non-numeric values.")
+
 
 # Filtering
 # KEYWORDS moved to keywords.json for dynamic management

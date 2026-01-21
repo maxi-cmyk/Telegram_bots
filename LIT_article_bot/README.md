@@ -34,7 +34,7 @@
     ```bash
     python bot.py
     ```
-    The bot will fetch 4 articles immediately, and then check for updates **every 60 minutes** (configurable in `.env`).
+    The bot will fetch 4 articles immediately, and then check for updates **every 20 minutes** (configurable in `.env`).
 
 ## 🛠 Admin & Keyword Management
 
@@ -48,23 +48,35 @@ The bot includes interactive commands for administrators (restricted to `ADMIN_I
 | `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                        |
 | `/list_keywords`  | `/list_keywords`      | Show all active keywords.                         |
 
-## Code Overview
+## Code Logic & Functions
 
-### `bot.py`
+### `bot.py` (Main Entry Point)
 
-- **`startup_job`**: Runs once on boot. Fetches 4 unique articles from the last 7 days to populate the channel immediately.
-- **`scheduled_job`**: Runs periodically (default: every hour). Checks for _new_ articles published since the last check.
-- **`process_and_send`**: The core logic. It filters duplicates (using `storage.py`), relevance (using `processor.py`), formats the message with HTML, attaches the "Remove" button, and sends it.
-- **`remove_article`**: The callback handler that actually deletes the message when you click "Remove ❌".
+- **`is_admin(user_id)`**: A security check to ensure `ADMIN_ID` authorization before executing sensitive commands.
+- **`status_command(update, context)`**: Reports system health, uptime, source count, and active keywords to the admin.
+- **`force_fetch_command(update, context)`**: Manually triggers `scheduled_job` to fetch articles immediately.
+- **`list_keywords_command(update, context)`**: Displays all currently active tracking keywords.
+- **`add_keyword_command(update, context)`**: Adds a new keyword to the dynamic tracking list.
+- **`remove_keyword_command(update, context)`**: Removes a keyword from the dynamic tracking list.
+- **`remove_article(update, context)`**: Callback handler that deletes a message when the "Remove ❌" button is clicked.
+- **`process_and_send(context, articles, limit)`**: Core pipeline that filters duplicates/relevance, formats HTML, generates hashtags, attaches UI buttons, and sends messages.
+- **`scheduled_job(context)`**: Periodic background task that checks for new articles published since the last run.
+- **`startup_job(context)`**: One-time task that runs on boot to fetch recent unique articles (last 7 days) and populate the channel.
 
-### `fetcher.py`
+### `fetcher.py` (RSS Handling)
 
-- **`RSSFetcher.fetch_updates`**: parses the list of RSS feeds defined in `config.py`. It normalizes dates and handles errors (like bad feeds) gracefully.
+- **`RSSFetcher.fetch_updates(last_check_time)`**: Iterates through all configured RSS feeds, parses entries, handles errors, and returns a list of normalized article objects.
+- **`RSSFetcher._get_published_time(entry)`**: Helper that attempts to parse various date formats (published/updated) from RSS entries.
 
-### `processor.py`
+### `processor.py` (NLP & Formatting)
 
-- **`ArticleProcessor.process_article`**: Classifies articles into categories (e.g., Quantum, AI) based on keywords and generates hashtags. Uses the original RSS summary for the content.
+- **`ArticleProcessor.is_relevant(article, keywords)`**: Scans article titles and summaries for matches against the active keyword list.
+- **`ArticleProcessor.process_article(article, keywords)`**: Classifies articles into categories (e.g., AI, Crypto), generates relevant hashtags, assigns a category tag, and sanitizes/truncates the summary.
 
-### `storage.py`
+### `storage.py` (Persistence)
 
-- **`Storage`**: Manages `history.json`. It ensures we never spam the channel with the same article twice, even if the bot restarts.
+- **`Storage.load_history()` / `save_history()`**: Handles reading and writing the list of sent article links to `history.json`.
+- **`Storage.is_new(link)`**: Checks if a URL has already been processed to prevent duplicates.
+- **`Storage.add_article(link)`**: Marks a URL as processed and updates the history file (capped at 1000 entries).
+- **`Storage.load_keywords()` / `save_keywords()`**: Handles reading and writing dynamic keywords to `keywords.json`.
+- **`Storage.add_keyword(keyword)` / `remove_keyword(keyword)`**: CRUD operations for managing the persistent keyword list.

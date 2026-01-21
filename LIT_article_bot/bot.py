@@ -67,7 +67,7 @@ async def force_fetch_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     logger.info("Manual force fetch triggered.")
     
     # Run the scheduled logic immediately
-    # We pass 'context' but verify if scheduled_job uses it correctly (yes)
+    # We pass 'context' but verify if scheduled_job uses it correctly 
     await scheduled_job(context)
     
     await update.message.reply_text("Fetch complete.")

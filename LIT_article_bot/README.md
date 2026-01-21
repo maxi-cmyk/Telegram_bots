@@ -34,7 +34,7 @@
     ```bash
     python bot.py
     ```
-    The bot will fetch 4 articles immediately, and then check for updates **every 20 minutes** (configurable in `.env`).
+    The bot will fetch 4 articles immediately, and then check for updates **every 30 minutes** (configurable in `.env`).
 
 ## 🛠 Admin & Keyword Management
 

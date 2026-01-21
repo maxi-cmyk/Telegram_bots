@@ -252,12 +252,18 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     msg = f"🔍 <b>Search Results for '{query}':</b>\n\n"
-    for link, title, created_at in results:
+    for link, title, created_at, category, tags in results:
         # Fallback if title is None (legacy data)
         display_title = title if title else link
         # Truncate date
         date_str = created_at.split(' ')[0]
-        msg += f"• <a href='{link}'>{display_title}</a> ({date_str})\n"
+        
+        # Format tags nicely
+        tag_str = ""
+        if category:
+            tag_str += f"[{category}]"
+        
+        msg += f"• <a href='{link}'>{display_title}</a>\n  <i>{date_str} {tag_str}</i>\n"
         
     await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
 

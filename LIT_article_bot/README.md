@@ -60,7 +60,7 @@ The bot automatically categorizes articles (e.g., "AI & Law", "Tech Policy") and
 
 ### 📩 Private Utilities (DMs)
 
-- **Summarize on Demand**: Send any article link to the bot in a **Private Message**. It will reply with an AI summary (without posting to the channel).
+- **Summarize on Demand**: Send any article link to the bot in a **Private Message**. It will reply with an AI summary + **Related Articles from History**.
 
 ## Code Logic & Functions
 

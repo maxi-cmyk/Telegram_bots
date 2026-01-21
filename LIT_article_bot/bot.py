@@ -325,7 +325,24 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
                 f"{processed_data['hashtags']}"
             )
             
-            await update.message.reply_text(response, parse_mode='HTML')
+            # --- Related Articles Logic ---
+            category = processed_data.get('category')
+            if category:
+                # Search for articles in the same category
+                results = storage.search_articles(category)
+                
+                # Filter out the current article (check against link)
+                # results is list of tuples: (link, title, created_at, category, tags)
+                related = [r for r in results if r[0] != url][:3]
+                
+                if related:
+                    response += "\n\n📚 <b>Related from History:</b>\n"
+                    for link, title, created_at, _, _ in related:
+                        # Fallback title
+                        display_title = title if title else link
+                        response += f"• <a href='{link}'>{display_title}</a>\n"
+
+            await update.message.reply_text(response, parse_mode='HTML', disable_web_page_preview=True)
             # NOTE: We do NOT add to storage here. This is a private utility.
             
         else:

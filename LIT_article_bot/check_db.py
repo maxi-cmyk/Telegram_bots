@@ -18,12 +18,18 @@ def view_db():
 
         # Check History
         print("\n--- 📚 History (Last 5 Entries) ---")
-        cursor.execute("SELECT link, created_at FROM history ORDER BY created_at DESC LIMIT 5")
+        cursor.execute("SELECT link, title, summary, category, tags, created_at FROM history ORDER BY created_at DESC LIMIT 5")
         history = cursor.fetchall()
         if history:
             for h in history:
-                print(f"• {h[0]}")
-                print(f"  (Sent: {h[1]})")
+                title = h[1] if h[1] else "(No Title)"
+                category = h[3] if h[3] else "N/A"
+                tags = h[4] if h[4] else "N/A"
+                
+                print(f"• {title}")
+                print(f"  📂 {category} | 🏷 {tags}")
+                print(f"  Link: {h[0]}")
+                print(f"  (Sent: {h[5]})")
         else:
             print("(History is empty)")
             
@@ -33,9 +39,9 @@ def view_db():
         print(f"\nTotal Articles Sent: {count}")
         
     except sqlite3.OperationalError:
-        print("❌ Error: 'bot_data.db' not found. Run 'python bot.py' first to create and migrate it.")
+        print("Error: 'bot_data.db' not found. Run 'python bot.py' first to create and migrate it.")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
     finally:
         if 'conn' in locals():
             conn.close()

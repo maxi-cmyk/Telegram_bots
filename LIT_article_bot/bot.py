@@ -1,14 +1,30 @@
 import logging
 import asyncio
-import time
+
 from datetime import datetime, timedelta
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CallbackQueryHandler, CommandHandler, Application
+from telegram.ext import ApplicationBuilder, ContextTypes, CallbackQueryHandler, CommandHandler, Application, MessageHandler, filters
 from telegram.error import TelegramError
 
 from config import TELEGRAM_BOT_TOKEN, CHANNEL_ID, CHECK_INTERVAL_MINUTES, RSS_FEEDS, ADMIN_IDS, DEFAULT_KEYWORDS
+from fetcher import RSSFetcher
+from processor import ArticleProcessor
+from storage import Storage
 
-# ... (imports)
+# Setup Logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+# Silence httpx logs (getUpdates polling)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
+# Initialize components
+fetcher = RSSFetcher(RSS_FEEDS)
+processor = ArticleProcessor()
+storage = Storage()
+START_TIME = datetime.now()
 
 # --- Helper Checks ---
 def is_admin(user_id):
@@ -201,7 +217,14 @@ async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             
             # Add to storage so we don't duplicate if it comes in via RSS later
-            storage.add_article(url)
+            # Store title, summary, category, and tags for search
+            storage.add_article(
+                url, 
+                article_data['title'], 
+                processed_data['summary'],
+                processed_data.get('category'),
+                processed_data['hashtags']
+            )
             await update.message.reply_text("✅ Article shared successfully.")
             
         else:
@@ -210,6 +233,101 @@ async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Share command failed: {e}")
         await update.message.reply_text(f"❌ Error sharing article: {e}")
+
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Searches for past articles. Usage: /search <query>"""
+    # Allow all users to search? Or just admins? 
+    # User request implied utility for subscribers, but let's stick to admins for now unless specified otherwise,
+    # actually request said "Users can search", so let's allow everyone.
+    
+    if not context.args:
+        await update.message.reply_text("Usage: /search <topic>")
+        return
+
+    query = " ".join(context.args)
+    results = storage.search_articles(query)
+    
+    if not results:
+        await update.message.reply_text(f"No articles found for '<b>{query}</b>'.", parse_mode='HTML')
+        return
+        
+    msg = f"🔍 <b>Search Results for '{query}':</b>\n\n"
+    for link, title, created_at in results:
+        # Fallback if title is None (legacy data)
+        display_title = title if title else link
+        # Truncate date
+        date_str = created_at.split(' ')[0]
+        msg += f"• <a href='{link}'>{display_title}</a> ({date_str})\n"
+        
+    await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
+
+async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles private messages. 
+    If a URL is sent, summarizes it.
+    """
+    text = update.message.text
+    if not text:
+        return
+
+    # simple regex for url
+    import re
+    url_pattern = r'https?://[^\s]+'
+    urls = re.findall(url_pattern, text)
+    
+    if not urls:
+        # Ignore non-URL text in DMs to avoids being annoying? 
+        # Or reply with help? Let's ignore for now.
+        return
+
+    # Process first URL found
+    url = urls[0]
+    await update.message.reply_text("🤔 Reading and summarizing...")
+    
+    try:
+        from goose3 import Goose
+        g = Goose()
+        article = g.extract(url=url)
+        
+        if not article.title:
+            await update.message.reply_text("❌ Could not extract article content.")
+            g.close()
+            return
+
+        # Prepare for processor
+        article_data = {
+            "title": article.title,
+            "link": url,
+            "summary": article.cleaned_text[:2000], 
+            "published": datetime.now(),
+            "source": article.domain or "Private Share"
+        }
+        g.close()
+        
+        # We need keywords for hashtag generation, use current ones
+        current_keywords = storage.get_keywords()
+        processed_data = processor.process_article(article_data, current_keywords)
+        
+        if processed_data:
+            import html
+            safe_title = html.escape(article_data['title'])
+            
+            # Replying privately
+            response = (
+                f"<b>{safe_title}</b>\n\n"
+                f"{processed_data['summary']}\n\n"
+                f"{processed_data['hashtags']}"
+            )
+            
+            await update.message.reply_text(response, parse_mode='HTML')
+            # NOTE: We do NOT add to storage here. This is a private utility.
+            
+        else:
+            await update.message.reply_text("❌ Failed to generate summary.")
+
+    except Exception as e:
+        logger.error(f"Private summary failed: {e}")
+        await update.message.reply_text("❌ Error processing link.")
 
 # --- Existing Handlers ---
 
@@ -274,8 +392,14 @@ async def process_and_send(context: ContextTypes.DEFAULT_TYPE, articles, limit=N
                         reply_markup=reply_markup
                     )
                     
-                    # Mark as sent
-                    storage.add_article(link)
+                    # Mark as sent - STORE METADATA NOW
+                    storage.add_article(
+                        link, 
+                        article['title'], 
+                        processed_data['summary'],
+                        processed_data.get('category'),
+                        processed_data['hashtags']
+                    )
                     count += 1
                     
                     # Rate limit
@@ -308,7 +432,6 @@ async def startup_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Running startup job...")
     
     # Reload history from disk to ensure we have the latest state
-    # storage.history = storage.load_history() # REMOVED: SQLite handles persistence
     logger.info(f"Loaded {storage.get_history_count()} articles from history.")
     
     # Check if keywords need initialization
@@ -344,6 +467,14 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("remove_keyword", remove_keyword_command))
     application.add_handler(CommandHandler("list_keywords", list_keywords_command))
     application.add_handler(CommandHandler("share", share_command))
+    application.add_handler(CommandHandler("search", search_command))
+    
+    # Private Message Handler (for Summarizer)
+    # Filters: Text AND Private Chat AND Not a Command
+    application.add_handler(MessageHandler(
+        filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, 
+        handle_private_message
+    ))
     
     # Add Callback Handler
     application.add_handler(CallbackQueryHandler(remove_article, pattern="^remove$"))

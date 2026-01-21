@@ -40,14 +40,27 @@
 
 The bot includes interactive commands for administrators (restricted to `ADMIN_ID`):
 
-| Command           | Usage                 | Description                                       |
-| :---------------- | :-------------------- | :------------------------------------------------ |
-| `/status`         | `/status`             | View bot uptime, source count, and keyword count. |
-| `/force_fetch`    | `/force_fetch`        | Trigger an immediate check for new articles.      |
-| `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.             |
-| `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                        |
-| `/list_keywords`  | `/list_keywords`      | Show all active keywords.                         |
-| `/share`          | `/share <url>`        | Manually scrape and share an article URL.         |
+| Command           | Usage                 | Description                                                   |
+| :---------------- | :-------------------- | :------------------------------------------------------------ |
+| `/status`         | `/status`             | View bot uptime, source count, and keyword count.             |
+| `/force_fetch`    | `/force_fetch`        | Trigger an immediate check for new articles.                  |
+| `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.                         |
+| `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                                    |
+| `/list_keywords`  | `/list_keywords`      | Show all active keywords.                                     |
+| `/share`          | `/share <url>`        | Manually scrape and share an article URL.                     |
+| `/search`         | `/search <query>`     | Search past articles by **Title**, **Category**, or **Tags**. |
+
+### 🔎 Search & Categories (DM the bot)
+
+The bot automatically categorizes articles (e.g., "AI & Law", "Tech Policy") and adds tags.
+
+- **Deep Search**: Finds keywords in titles, summaries, and even original URLs.
+- **Search by Topic**: `/search AI` (Finds all AI-related articles)
+- **Search by Category**: `/search Regulation`
+
+### 📩 Private Utilities (DMs)
+
+- **Summarize on Demand**: Send any article link to the bot in a **Private Message**. It will reply with an AI summary (without posting to the channel).
 
 ## Code Logic & Functions
 

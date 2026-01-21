@@ -2,7 +2,9 @@ import sqlite3
 import json
 import os
 import logging
+import re
 from datetime import datetime
+from processor import CATEGORY_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -12,18 +14,23 @@ class Storage:
         self.conn = self._get_connection()
         self._init_db()
         self._run_migration()
+        self._backfill_metadata()
 
     def _get_connection(self):
         return sqlite3.connect(self.db_file, check_same_thread=False)
 
     def _init_db(self):
-        """Creates tables if they don't exist."""
+        """Creates tables if they don't exist and handles schema updates."""
         try:
             with self.conn:
                 # History Table
                 self.conn.execute("""
                     CREATE TABLE IF NOT EXISTS history (
                         link TEXT PRIMARY KEY,
+                        title TEXT,
+                        summary TEXT,
+                        category TEXT,
+                        tags TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
@@ -34,6 +41,17 @@ class Storage:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+            
+            # --- Schema Migration: Check for missing columns ---
+            cursor = self.conn.execute("PRAGMA table_info(history)")
+            columns = [info[1] for info in cursor.fetchall()]
+            
+            for col in ["title", "summary", "category", "tags"]:
+                if col not in columns:
+                    logger.info(f"Migrating DB: Adding '{col}' column to history...")
+                    with self.conn:
+                        self.conn.execute(f"ALTER TABLE history ADD COLUMN {col} TEXT")
+
         except sqlite3.Error as e:
             logger.error(f"Database initialization error: {e}")
 
@@ -45,7 +63,8 @@ class Storage:
             try:
                 with open("history.json", 'r') as f:
                     history_data = json.load(f)
-                    
+                
+                # Legacy only had links
                 with self.conn:
                     self.conn.executemany(
                         "INSERT OR IGNORE INTO history (link) VALUES (?)",
@@ -75,6 +94,64 @@ class Storage:
             except Exception as e:
                 logger.error(f"Keywords migration failed: {e}")
 
+    def _backfill_metadata(self):
+        """Attempts to generate category/tags for legacy articles from their URLs."""
+        try:
+            # Find articles with missing metadata
+            cursor = self.conn.execute(
+                "SELECT link FROM history WHERE category IS NULL OR tags IS NULL"
+            )
+            rows = cursor.fetchall()
+            
+            if not rows:
+                return
+
+            logger.info(f"Backfilling metadata for {len(rows)} articles...")
+            
+            keywords = self.get_keywords()
+            # Compile keywords for speed
+            kw_patterns = [(k, re.compile(r'\b' + re.escape(k.lower()) + r'\b')) for k in keywords]
+            
+            updates = []
+            
+            for (link,) in rows:
+                text = link.lower()
+                tags = []
+                category = "General Tech Law" # Default
+                
+                # 1. Determine Category from Map
+                for cat, cat_keys in CATEGORY_MAP.items():
+                    for k in cat_keys:
+                        if k.lower() in text: # Simple text check for URL
+                            category = cat
+                            break
+                    if category != "General Tech Law":
+                        break
+                
+                # 2. Generate Tags from Keywords
+                for k, pattern in kw_patterns:
+                    # For URL, regex boundary might fail on hyphens. Simple check is safer for URLs.
+                    if k.lower() in text: 
+                        tags.append(f"#{k.replace(' ', '')}")
+                
+                # Add category tag if unique
+                cat_tag = f"#{category.replace(' ', '').replace('&', '')}"
+                if cat_tag not in tags:
+                    tags.append(cat_tag)
+                
+                tags_str = " ".join(tags)
+                updates.append((category, tags_str, link))
+            
+            with self.conn:
+                self.conn.executemany(
+                    "UPDATE history SET category = ?, tags = ? WHERE link = ?",
+                    updates
+                )
+            logger.info("Metadata backfill complete.")
+            
+        except Exception as e:
+            logger.error(f"Backfill failed: {e}")
+
     # --- History Management ---
 
     def is_new(self, link):
@@ -82,13 +159,40 @@ class Storage:
         cursor = self.conn.execute("SELECT 1 FROM history WHERE link = ?", (link,))
         return cursor.fetchone() is None
 
-    def add_article(self, link):
-        """Adds a link to history."""
+    def add_article(self, link, title=None, summary=None, category=None, tags=None):
+        """Adds a link to history with optional metadata."""
         try:
             with self.conn:
-                self.conn.execute("INSERT OR IGNORE INTO history (link) VALUES (?)", (link,))
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO history (link, title, summary, category, tags) VALUES (?, ?, ?, ?, ?)", 
+                    (link, title, summary, category, tags)
+                )
         except sqlite3.Error as e:
             logger.error(f"Error adding article: {e}")
+
+    def search_articles(self, query):
+        """Search history for articles matching query (in title, summary, tags, or category)."""
+        try:
+            # Simple LIKE search
+            search_query = f"%{query}%"
+            cursor = self.conn.execute(
+                """
+                SELECT link, title, created_at, category, tags
+                FROM history 
+                WHERE title LIKE ? 
+                   OR summary LIKE ? 
+                   OR link LIKE ?
+                   OR category LIKE ?
+                   OR tags LIKE ?
+                ORDER BY created_at DESC 
+                LIMIT 10
+                """, 
+                (search_query, search_query, search_query, search_query, search_query)
+            )
+            return cursor.fetchall()
+        except sqlite3.Error as e:
+            logger.error(f"Search error: {e}")
+            return []
 
     def get_history_count(self):
         """Returns the number of articles in history."""

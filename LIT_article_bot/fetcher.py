@@ -17,11 +17,12 @@ class RSSFetcher:
     
     def fetch_updates(self, last_check_time=None):
         """
-        Fetches articles from RSS feeds.
+        Fetches articles from RSS feeds and Custom Scrapers.
         If last_check_time is provided, only returns articles published after that time.
         """
         articles = []
         
+        # 1. Fetch from RSS Feeds
         for source in self.sources:
             try:
                 # Use requests to fetch the feed content
@@ -34,13 +35,9 @@ class RSSFetcher:
                 # Log feed title for debugging
                 logger.debug(f"Fetched feed: {feed.feed.get('title', 'Unknown Title')}")
 
-                # Even if bozo is True, feedparser might have recovered some data.
-                # We only skip if there are no entries.
                 if not feed.entries:
                     if feed.bozo:
                         logger.warning(f"Error parsing feed {source}: {feed.bozo_exception}")
-                    else:
-                        logger.warning(f"No entries found for {source}")
                     continue
                 
                 for entry in feed.entries:
@@ -60,10 +57,30 @@ class RSSFetcher:
                         "published": published_time,
                         "source": feed.feed.get("title", source)
                     })
-            except requests.RequestException as e:
-                logger.error(f"Network error fetching {source}: {e}")
             except Exception as e:
-                logger.error(f"Error processing {source}: {e}")
+                logger.error(f"Error processing RSS {source}: {e}")
+
+        # 2. Fetch from Custom Scrapers
+        from config import SCRAPER_SOURCES
+        from scrapers import PDPCScraper
+        
+        for name, url in SCRAPER_SOURCES.items():
+            scraper = None
+            if name == "PDPC":
+                scraper = PDPCScraper(name, url)
+            else:
+                logger.warning(f"No scraper implementation for {name}")
+                continue
+            
+            if scraper:
+                try:
+                    scraped_articles = scraper.fetch()
+                    for art in scraped_articles:
+                        if last_check_time and art['published'] <= last_check_time:
+                            continue
+                        articles.append(art)
+                except Exception as e:
+                    logger.error(f"Error running scraper {name}: {e}")
                 
         # Sort by published time (newest first)
         articles.sort(key=lambda x: x['published'], reverse=True)

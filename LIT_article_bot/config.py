@@ -8,6 +8,9 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 # AI Configuration
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+# RAG Configuration
+CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "chroma_db")
+
 
 # Check if keys are present
 if not TELEGRAM_BOT_TOKEN:
@@ -54,10 +57,20 @@ RSS_FEEDS = [
     "https://www.technologyreview.com/feed/", # MIT Technology Review
     "https://btlj.org/feed/", # Berkeley Technology Law Journal
     
+    
     # Singapore Sources
     "https://www.businesstimes.com.sg/rss/technology", # Business Times Tech
     "https://thetechrevolutionist.com/category/tech-explained/feed", # The Tech Revolutionist (Tech Explained)
     "https://www.techgoondu.com/feed/", # TechGoondu
     "https://techforgoodinstitute.org/feed/", # Tech for Good Institute
     
+    # Legal & Research
+    "https://papers.ssrn.com/sol3/JELJOUR_RSS.cfm?journal_id=225", # SSRN Cyberspace Law
+    "https://sso.agc.gov.sg/rss/new-legislation", # Singapore Statutes Online (New Legislation)
 ]
+
+# Custom Scraper Sources (Name -> URL)
+SCRAPER_SOURCES = {
+    "PDPC": "https://www.pdpc.gov.sg/news-and-events/press-room", 
+    # "MAS": "https://www.mas.gov.sg/news/media-releases", # Example, usually strict anti-bot
+}

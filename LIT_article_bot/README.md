@@ -1,96 +1,79 @@
 # Tech Law Telegram Bot
 
+A sophisticated Telegram bot that fetches, categorizes, and summarizes technology law news from Singapore and international sources. It features a RAG (Retrieval-Augmented Generation) engine to answer questions based on the articles it has collected.
+
 ## Features
 
-- **Smart Fetching**: Fetches from trusted Tech/Law sources:
-  - **Singapore**: Singapore Law Watch, Business Times Tech, Tech Revolutionist (Tech Explained), TechGoondu, Tech for Good Institute.
-  - **International**: Artificial Lawyer, ABA Journal, Eric Goldman's Blog, MIT Tech Review, Berkeley Tech Law, EFF.
-- **Classification**: Auto-tags articles into categories like `[Quantum Computing]`, `[Cryptography]`, `[AI & Law]`, `[Green Tech]` based on keywords.
-- **Deduplication**: Remembers sent articles (persistent `history.json`) to avoid duplicates.
-- **Startup Fetch**: Immediately finds 4 fresh articles when you restart the bot.
-- **Interactive**: Includes a "Remove ❌" button to delete unwanted messages.
+- **Smart Fetching**:
+  - **RSS Feeds**: Singapore Law Watch, Business Times Tech, Tech Revolutionist, TechGoondu, Tech for Good Institute, Artificial Lawyer, ABA Journal, Eric Goldman's Blog, MIT Tech Review, Berkeley Tech Law, EFF.
+  - **Custom Scrapers**: Handles sites without RSS feeds, such as the **PDPC Press Room**.
+- **RAG Engine**:
+  - Indexes all fetched articles into a local vector database (**ChromaDB**).
+  - Allows users to ask questions (`/ask`) and get answers grounded in the actual news content using **Ollama**.
+- **Classification**: Auto-tags articles (e.g., `[Quantum Computing]`, `[AI & Law]`) based on content analysis.
+- **SQLite Database**: Robust data storage for article history and dynamic keywords, replacing fragile JSON files.
+- **Deduplication**: Remembers sent articles to avoid duplicates.
+- **Startup Fetch**: Immediately finds 4 fresh articles on restart.
+- **Interactive**: "Remove ❌" button to delete unwanted messages.
 
 ## Setup
 
-1.  **Install Dependencies**:
+### 1. Prerequisites
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+- **Python 3.10+**
+- **Ollama**: Download and install from [ollama.com](https://ollama.com).
+  - Pull the default model: `ollama pull llama3.2` (or your preferred model).
 
-    (Note: use `python-telegram-bot[job-queue]` for scheduling)
+### 2. Install Dependencies
 
-2.  **Configuration**:
-    The bot is configured via environment variables and `config.py`.
+```bash
+pip install -r requirements.txt
+```
 
-    ### Environment Variables (`.env`)
-    - `TELEGRAM_BOT_TOKEN`: Your API token.
-    - `CHANNEL_ID`: The channel to post to (start with `-100`).
-    - `CHECK_INTERVAL_MINUTES`: How often to check feeds (default: 60).
-    - `ADMIN_IDS`: Users allowed to use admin commands (comma-separated, e.g., `12345,67890`).
-    - `OLLAMA_MODEL`: Local AI model to use (default: `llama3.2`).
+### 3. Configuration
 
-3.  **Run**:
-    ```bash
-    python bot.py
-    ```
-    The bot will fetch 4 articles immediately, and then check for updates **every 30 minutes** (configurable in `.env`).
+Create a `.env` file with your keys:
 
-## 🛠 Admin & Keyword Management
+```ini
+TELEGRAM_BOT_TOKEN=your_token_here
+CHANNEL_ID=-1001234567890
+CHECK_INTERVAL_MINUTES=60
+ADMIN_IDS=12345678,98765432
+OLLAMA_MODEL=llama3.2
+```
 
-The bot includes interactive commands for administrators (restricted to `ADMIN_ID`):
+### 4. Run the Bot
 
-| Command           | Usage                 | Description                                                   |
-| :---------------- | :-------------------- | :------------------------------------------------------------ |
-| `/status`         | `/status`             | View bot uptime, source count, and keyword count.             |
-| `/force_fetch`    | `/force_fetch`        | Trigger an immediate check for new articles.                  |
-| `/add_keyword`    | `/add_keyword GenAI`  | Add a new tracking keyword instantly.                         |
-| `/remove_keyword` | `/remove_keyword NFT` | Remove a tracking keyword.                                    |
-| `/list_keywords`  | `/list_keywords`      | Show all active keywords.                                     |
-| `/share`          | `/share <url>`        | Manually scrape and share an article URL.                     |
-| `/search`         | `/search <query>`     | Search past articles by **Title**, **Category**, or **Tags**. |
+```bash
+python bot.py
+```
 
-### 🔎 Search & Categories (DM the bot)
+_The bot will automatically initialize the SQLite database (`bot_data.db`) and migrate any old data on the first run._
 
-The bot automatically categorizes articles (e.g., "AI & Law", "Tech Policy") and adds tags.
+## 🤖 Commands
 
-- **Deep Search**: Finds keywords in titles, summaries, and even original URLs.
-- **Search by Topic**: `/search AI` (Finds all AI-related articles)
-- **Search by Category**: `/search Regulation`
+| Command           | Usage                              | Description                                                   |
+| :---------------- | :--------------------------------- | :------------------------------------------------------------ |
+| `/ask`            | `/ask What is the latest on PDPA?` | **Ask a question** based on the news articles.                |
+| `/status`         | `/status`                          | View bot uptime, source count, and DB stats.                  |
+| `/force_fetch`    | `/force_fetch`                     | Trigger an immediate check for new articles.                  |
+| `/add_keyword`    | `/add_keyword GenAI`               | Add a new tracking keyword instantly.                         |
+| `/remove_keyword` | `/remove_keyword NFT`              | Remove a tracking keyword.                                    |
+| `/list_keywords`  | `/list_keywords`                   | Show all active keywords.                                     |
+| `/share`          | `/share <url>`                     | Manually scrape and share an article URL.                     |
+| `/search`         | `/search <query>`                  | Search past articles by **Title**, **Category**, or **Tags**. |
 
-### 📩 Private Utilities (DMs)
+## Code Architecture
 
-- **Summarize on Demand**: Send any article link to the bot in a **Private Message**. It will reply with an AI summary + **Related Articles from History**.
+- **`bot.py`**: Main entry point, Telegram handlers, and job queue.
+- **`rag_engine.py`**: Manages **ChromaDB** (vector storage) and **Ollama** (generation) for the `/ask` command.
+- **`scrapers.py`**: Contains custom logic to scrape sites like **PDPC** that don't provide RSS feeds.
+- **`fetcher.py`**: Orchestrates fetching from both RSS feeds and custom scrapers.
+- **`processor.py`**: Handles NLP tasks: keyword matching, categorization, and summarization.
+- **`storage.py`**: SQLite database interface for storing article history and keywords.
 
-## Code Logic & Functions
+## Troubleshooting
 
-### `bot.py` (Main Entry Point)
-
-- **`is_admin(user_id)`**: A security check to ensure `ADMIN_ID` authorization before executing sensitive commands.
-- **`status_command(update, context)`**: Reports system health, uptime, source count, and active keywords to the admin.
-- **`force_fetch_command(update, context)`**: Manually triggers `scheduled_job` to fetch articles immediately.
-- **`list_keywords_command(update, context)`**: Displays all currently active tracking keywords.
-- **`add_keyword_command(update, context)`**: Adds a new keyword to the dynamic tracking list.
-- **`remove_keyword_command(update, context)`**: Removes a keyword from the dynamic tracking list.
-- **`remove_article(update, context)`**: Callback handler that deletes a message when the "Remove ❌" button is clicked.
-- **Start Migration**: On first run, it automatically migrates existing `history.json` and `keywords.json` to `bot_data.db`.
-- **`process_and_send`**: The core logic. It filters duplicates (using `storage.py`), relevance (using `processor.py`), formats the message with HTML, attaches the "Remove" button, and sends it.
-- **`scheduled_job`**: Runs periodically (default: every hour). Checks for _new_ articles published since the last check.
-- **`startup_job`**: Runs once on boot. Fetches 4 unique articles from the last 7 days to populate the channel immediately.
-
-### `fetcher.py` (RSS Handling)
-
-- **`RSSFetcher.fetch_updates(last_check_time)`**: Iterates through all configured RSS feeds, parses entries, handles errors, and returns a list of normalized article objects.
-- **`RSSFetcher._get_published_time(entry)`**: Helper that attempts to parse various date formats (published/updated) from RSS entries.
-
-### `processor.py` (NLP & Formatting)
-
-- **`ArticleProcessor.is_relevant(article, keywords)`**: Scans article titles and summaries for matches against the active keyword list.
-- **`ArticleProcessor.process_article(article, keywords)`**: Classifies articles into categories (e.g., AI, Crypto), generates relevant hashtags, assigns a category tag, and sanitizes/truncates the summary.
-
-### `storage.py` (Persistence)
-
-- **`Storage` (SQLite Migrated)**: Manages `bot_data.db`. Handles persistent history and active keywords using SQLite for robustness and thread safety.
-- **`_run_migration()`**: Automatically imports legacy `history.json` and `keywords.json` data into the database on first run.
-- **`is_new(link)` / `add_article(link)`**: Checks and adds articles using efficient SQL queries.
-- **`get_keywords()` / `add_keyword()`**: Manages dynamic keyword filtering via the database table.
+- **Ollama Error**: If `/ask` fails, ensure Ollama is running (`ollama serve`) and the model specified in `.env` matches what you pulled.
+- **Database**: If you need to reset the data, delete `bot_data.db` and the bot will recreate it fresh on restart.
+- **Migration**: Old `history.json` files are renamed to `.bak` after successful migration.

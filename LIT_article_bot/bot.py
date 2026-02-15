@@ -10,6 +10,12 @@ from config import TELEGRAM_BOT_TOKEN, CHANNEL_ID, CHECK_INTERVAL_MINUTES, RSS_F
 from fetcher import RSSFetcher
 from processor import ArticleProcessor
 from storage import Storage
+from rag_engine import RagEngine
+import uuid
+
+# Global Cache for /summarise -> Share flow
+# Key: UUID, Value: Article Data Dict
+TEMP_ARTICLE_CACHE = {}
 
 # Setup Logging
 logging.basicConfig(
@@ -24,6 +30,8 @@ logger = logging.getLogger(__name__)
 fetcher = RSSFetcher(RSS_FEEDS)
 processor = ArticleProcessor()
 storage = Storage()
+# Initialize RAG Engine (Global)
+rag_engine = RagEngine()
 START_TIME = datetime.now()
 
 # --- Helper Checks ---
@@ -225,6 +233,21 @@ async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 processed_data.get('category'),
                 processed_data['hashtags']
             )
+            
+            # Index manually shared article
+            try:
+                rag_engine.index_article(
+                    text=f"{article_data['title']}\n\n{article_data['summary']}",
+                    metadata={
+                        'source': article_data['source'],
+                        'title': article_data['title'],
+                        'link': article_data['link'],
+                        'published_str': str(article_data['published'])
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Manual RAG Indexing failed: {e}")
+                
             await update.message.reply_text("✅ Article shared successfully.")
             
         else:
@@ -266,6 +289,23 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"• <a href='{link}'>{display_title}</a>\n  <i>{date_str} {tag_str}</i>\n"
         
     await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
+
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Answers questions using RAG. Usage: /ask <question>"""
+    if not context.args:
+        await update.message.reply_text("Usage: /ask <question>")
+        return
+    
+    query = " ".join(context.args)
+    await update.message.reply_text(f"🤔 Thinking about: '{query}'...")
+    
+    try:
+        # Run in thread to avoid blocking main loop
+        response = await asyncio.to_thread(rag_engine.generate_answer, query)
+        await update.message.reply_text(response, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Ask command failed: {e}")
+        await update.message.reply_text("❌ An error occurred while generating the answer.")
 
 async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -352,17 +392,161 @@ async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"Private summary failed: {e}")
         await update.message.reply_text("❌ Error processing link.")
 
+async def summarise_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Summarises a URL and offers to share it.
+    Usage: /summarise <url>
+    """
+    if not context.args:
+        await update.message.reply_text("Usage: /summarise <url>")
+        return
+
+    url = context.args[0]
+    await update.message.reply_text("🤔 Reading and summarizing...")
+
+    try:
+        from goose3 import Goose
+        g = Goose()
+        article = g.extract(url=url)
+        
+        if not article.title:
+            await update.message.reply_text("❌ Could not extract article content.")
+            g.close()
+            return
+
+        # Prepare for processor
+        article_data = {
+            "title": article.title,
+            "link": url,
+            "summary": article.cleaned_text[:2000], 
+            "published": datetime.now(),
+            "source": article.domain or "Manual Summary"
+        }
+        g.close()
+        
+        # Process
+        current_keywords = storage.get_keywords()
+        processed_data = processor.process_article(article_data, current_keywords)
+        
+        if processed_data:
+            import html
+            safe_title = html.escape(article_data['title'])
+            
+            # Form response
+            response = (
+                f"<b>{safe_title}</b>\n\n"
+                f"{processed_data['summary']}\n\n"
+                f"{processed_data['hashtags']}"
+            )
+            
+            # Store in Cache for Sharing
+            cache_id = str(uuid.uuid4())
+            TEMP_ARTICLE_CACHE[cache_id] = {
+                'article': article_data,
+                'processed': processed_data
+            }
+            
+            # Add Share Button
+            keyboard = [[InlineKeyboardButton("Share to Channel 📢", callback_data=f"share|{cache_id}")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=reply_markup)
+            
+        else:
+            await update.message.reply_text("❌ Failed to generate summary.")
+
+    except Exception as e:
+        logger.error(f"Summarise command failed: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
 # --- Existing Handlers ---
 
-async def remove_article(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Callback query handler to remove a message."""
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles callback queries (Remove message, Share article)."""
     query = update.callback_query
-    await query.answer() # Acknowledge the callback
-    try:
-        await query.delete_message()
-        logger.info("Message removed by user.")
-    except TelegramError as e:
-        logger.error(f"Failed to delete message: {e}")
+    await query.answer() # Acknowledge
+    
+    data = query.data
+    
+    # --- Remove Action ---
+    if data == "remove":
+        try:
+            await query.delete_message()
+            logger.info("Message removed by user.")
+        except TelegramError as e:
+            logger.error(f"Failed to delete message: {e}")
+            
+    # --- Share Action ---
+    elif data.startswith("share|"):
+        _, cache_id = data.split("|")
+        cached_item = TEMP_ARTICLE_CACHE.get(cache_id)
+        
+        if not cached_item:
+            await query.edit_message_text(text="❌ Error: Article data expired or not found.")
+            return
+            
+        article_data = cached_item['article']
+        processed_data = cached_item['processed']
+        
+        # Construct Channel Message
+        import html
+        safe_title = html.escape(article_data['title'])
+        category_tag = f"<b>[{processed_data.get('category', 'Tech Law')}]</b>"
+        manual_tag = "\n<i>(Shared via /summarise)</i>"
+        
+        message = f"{category_tag}\n" \
+                  f"<b>{safe_title}</b>\n\n" \
+                  f"{processed_data['summary']}\n\n" \
+                  f"Source: {article_data['source']}\n" \
+                  f"{processed_data['hashtags']}\n" \
+                  f"{manual_tag}\n\n" \
+                  f"<a href='{article_data['link']}'>Read Full Article</a>"
+        
+        # Add Remove Button for the channel message
+        keyboard = [[InlineKeyboardButton("Remove ❌", callback_data="remove")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        try:
+            # Send to Channel
+            await context.bot.send_message(
+                chat_id=CHANNEL_ID, 
+                text=message, 
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+            
+            # Store & Index
+            try:
+                storage.add_article(
+                    article_data['link'], 
+                    article_data['title'], 
+                    processed_data['summary'],
+                    processed_data.get('category'),
+                    processed_data['hashtags']
+                )
+                
+                rag_engine.index_article(
+                    text=f"{article_data['title']}\n\n{article_data['summary']}",
+                    metadata={
+                        'source': article_data['source'],
+                        'title': article_data['title'],
+                        'link': article_data['link'],
+                        'published_str': str(article_data['published'])
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Storage/Indexing failed during share: {e}")
+
+            # Update the button text to show success on the user's side
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(f"✅ Shared <b>{safe_title}</b> to channel!", parse_mode='HTML')
+            
+            # Clear cache
+            del TEMP_ARTICLE_CACHE[cache_id]
+            
+        except Exception as e:
+            logger.error(f"Failed to share article: {e}")
+            await query.message.reply_text("❌ Failed to share article to channel.")
 
 async def process_and_send(context: ContextTypes.DEFAULT_TYPE, articles, limit=None):
     """Processes fetched articles and sends them."""
@@ -425,8 +609,22 @@ async def process_and_send(context: ContextTypes.DEFAULT_TYPE, articles, limit=N
                     )
                     count += 1
                     
-                    # Rate limit
                     await asyncio.sleep(2) 
+                    
+                    # RAG Indexing
+                    try:
+                        # Index relevant article
+                        rag_engine.index_article(
+                            text=f"{article['title']}\n\n{article['summary']}",
+                            metadata={
+                                'source': article['source'],
+                                'title': article['title'],
+                                'link': article['link'],
+                                'published_str': str(article['published'])
+                            }
+                        )
+                    except Exception as e:
+                        logger.error(f"RAG Indexing failed: {e}")
                     
                 except TelegramError as e:
                     logger.error(f"Failed to send message: {e}")
@@ -469,9 +667,7 @@ async def startup_job(context: ContextTypes.DEFAULT_TYPE):
     if not articles:
         logger.info("No articles found for startup.")
         return
-
-    # We want 4 unique articles
-    # process_and_send handles filtering and limiting
+        
     await process_and_send(context, articles, limit=4)
     logger.info("Startup job finished.")
 
@@ -491,6 +687,9 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("list_keywords", list_keywords_command))
     application.add_handler(CommandHandler("share", share_command))
     application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(CommandHandler("ask", ask_command))
+    application.add_handler(CommandHandler("summarise", summarise_command))
+    application.add_handler(CommandHandler("summarize", summarise_command))
     
     # Private Message Handler (for Summarizer)
     # Filters: Text AND Private Chat AND Not a Command
@@ -499,8 +698,8 @@ if __name__ == "__main__":
         handle_private_message
     ))
     
-    # Add Callback Handler
-    application.add_handler(CallbackQueryHandler(remove_article, pattern="^remove$"))
+    # Add Callback Handler - Handles "remove" (channel) AND "share|..." (summarise)
+    application.add_handler(CallbackQueryHandler(handle_callback))
 
     # Add Error Handler
     application.add_error_handler(error_handler)
@@ -512,7 +711,6 @@ if __name__ == "__main__":
     job_queue.run_once(startup_job, 5)
     
     # Run periodic job
-    # interval is in seconds
     job_queue.run_repeating(scheduled_job, interval=CHECK_INTERVAL_MINUTES * 60, first=60)
 
     logger.info(f"Bot started. Checking every {CHECK_INTERVAL_MINUTES} minutes.")

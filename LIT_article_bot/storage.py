@@ -110,7 +110,7 @@ class Storage:
             
             keywords = self.get_keywords()
             # Compile keywords for speed
-            kw_patterns = [(k, re.compile(r'\b' + re.escape(k.lower()) + r'\b')) for k in keywords]
+            kw_patterns = [(k, re.compile(r'\\b' + re.escape(k.lower()) + r'\\b')) for k in keywords]
             
             updates = []
             
